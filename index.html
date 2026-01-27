@@ -5,57 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON Validator</title>
     <style>
-        .error {
-            border: 2px solid red;
-            background-color: rgba(255, 0, 0, 0.2);
-        }
+        body { font-family: Arial, sans-serif; }
+        .error { color: red; font-weight: bold; }
+        .highlight { background-color: yellow; }
     </style>
 </head>
 <body>
     <h1>JSON Validator</h1>
     <textarea id="jsonInput" rows="10" cols="50"></textarea><br>
-    <button onclick="validateJSON()">Validate JSON</button>
-    <div id="errorPosition" style="color: red;"></div>
+    <button onclick="validateJSON()">Validate</button>
+    <div id="errorOutput" class="error"></div>
 
     <script>
         function validateJSON() {
-            const jsonInput = document.getElementById('jsonInput').value;
-            const errorPositionDiv = document.getElementById('errorPosition');
+            const input = document.getElementById('jsonInput').value;
+            const errorOutput = document.getElementById('errorOutput');
+            errorOutput.innerHTML = ''; // Clear previous errors
+
             try {
-                JSON.parse(jsonInput);
-                errorPositionDiv.textContent = 'No errors found!';
-                clearErrorHighlights();
-            } catch (error) {
-                const position = error.message.match(/at line (\d+), column (\d+)/);
-                if (position) {
-                    const line = parseInt(position[1], 10);
-                    const column = parseInt(position[2], 10);
-                    highlightError(jsonInput, line, column);
-                    errorPositionDiv.textContent = `Error at line ${line}, column ${column}`;
-                } else {
-                    errorPositionDiv.textContent = 'JSON is invalid';
-                }
+                // Use JSON.parse() to validate input
+                JSON.parse(input);
+                errorOutput.innerHTML = 'No errors found!';
+                errorOutput.classList.remove('error');
+                return;
+            } catch (e) {
+                highlightError(input, e);
             }
         }
 
-        function highlightError(jsonInput, line, column) {
-            const lines = jsonInput.split('\n');
-            // Clear previous highlights
-            clearErrorHighlights();
-            // Highlight the error position
-            const errorLine = document.createElement('div');
-            errorLine.className = 'error';
-            errorLine.textContent = lines[line - 1];
-            const formattedPosition = ' '.repeat(column - 1) + '^'; // Pointer
-            document.body.appendChild(errorLine);
-            const indicator = document.createElement('div');
-            indicator.textContent = formattedPosition;
-            document.body.appendChild(indicator);
-        }
+        function highlightError(input, error) {
+            // Determine the character position of the error
+            const position = error.location ? error.location.start : -1;
 
-        function clearErrorHighlights() {
-            const errorLines = document.querySelectorAll('.error');
-            errorLines.forEach(line => line.remove());
+            // Highlight the error position in the input
+            const highlightedInput = input.split('')
+                .map((char, index) => index === position ? `<span class='highlight'>${char}</span>` : char)
+                .join('');
+
+            document.getElementById('jsonInput').value = highlightedInput;
+            errorOutput.innerHTML = 'JSON syntax error detected! Please fix the highlighted part.';
         }
     </script>
 </body>
