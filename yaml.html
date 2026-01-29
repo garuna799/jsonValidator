@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>YAML Validator</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+    header a { text-decoration:none; color:#007bff; }
+    textarea { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 14px; }
+    .controls { margin-top: 8px; }
+    .controls button { margin-right: 8px; padding: 6px 10px; }
+    .error { color: red; font-weight: bold; margin-top: 8px; }
+    .success { color: green; font-weight: bold; margin-top: 8px; }
+    pre.formatted { background:#f8f8f8; padding: 12px; border: 1px solid #ddd; white-space: pre; overflow: auto; max-height: 300px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>YAML Validator</h1>
+    <nav>
+      <a href="index.html">← Back to JSON Validator</a>
+    </nav>
+  </header>
+
+  <p>Paste YAML below. Use <strong>Validate</strong> to check syntax, <strong>Format</strong> to pretty-print, and the validator will move the cursor to the error location if parsing fails.</p>
+
+  <textarea id="yamlInput" rows="16" placeholder="Enter YAML here..."></textarea>
+
+  <div class="controls">
+    <button onclick="validateYAML()">Validate</button>
+    <button onclick="formatYAML()">Format</button>
+    <button onclick="clearYAML()">Clear</button>
+  </div>
+
+  <div id="yamlOutput" role="status" aria-live="polite" style="margin-top:8px;"></div>
+
+  <h3>Formatted YAML</h3>
+  <pre id="yamlFormatted" class="formatted" readonly></pre>
+
+  <!-- js-yaml from CDN; to vendor, download and serve locally if preferred -->
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+  <script>
+    function validateYAML() {
+      const inputEl = document.getElementById('yamlInput');
+      const outEl = document.getElementById('yamlOutput');
+      outEl.textContent = '';
+      outEl.className = '';
+      const text = inputEl.value;
+
+      if (!text.trim()) {
+        outEl.textContent = 'Please enter YAML to validate.';
+        outEl.className = 'error';
+        return;
+      }
+
+      try {
+        jsyaml.load(text);
+        outEl.textContent = 'No errors found!';
+        outEl.className = 'success';
+        // show formatted in preview
+        const parsed = jsyaml.load(text);
+        document.getElementById('yamlFormatted').textContent = jsyaml.dump(parsed, { indent: 2 });
+      } catch (e) {
+        const msg = e && (e.reason || e.message) ? (e.reason || e.message) : String(e);
+        let markerInfo = '';
+        if (e && e.mark) {
+          const line = (typeof e.mark.line === 'number') ? e.mark.line : null;
+          const column = (typeof e.mark.column === 'number') ? e.mark.column : null;
+          if (line !== null && column !== null) {
+            markerInfo = ` at line ${line + 1}, column ${column + 1}`;
+            selectAtLineColumn(inputEl, line, column);
+          }
+        }
+        outEl.textContent = 'YAML syntax error: ' + msg + markerInfo;
+        outEl.className = 'error';
+        document.getElementById('yamlFormatted').textContent = '';
+      }
+    }
+
+    function formatYAML() {
+      const inputEl = document.getElementById('yamlInput');
+      const outEl = document.getElementById('yamlOutput');
+      outEl.textContent = '';
+      outEl.className = '';
+
+      const text = inputEl.value;
+      if (!text.trim()) {
+        outEl.textContent = 'Please enter YAML to format.';
+        outEl.className = 'error';
+        return;
+      }
+
+      try {
+        const parsed = jsyaml.load(text);
+        // Dump with 2-space indentation
+        const dumped = jsyaml.dump(parsed, { indent: 2, noArrayIndent: false });
+        inputEl.value = dumped;
+        document.getElementById('yamlFormatted').textContent = dumped;
+        outEl.textContent = 'Formatted successfully.';
+        outEl.className = 'success';
+      } catch (e) {
+        // Format fails if parse fails — show validation error and highlight
+        validateYAML();
+      }
+    }
+
+    function clearYAML() {
+      const inputEl = document.getElementById('yamlInput');
+      inputEl.value = '';
+      document.getElementById('yamlOutput').textContent = '';
+      document.getElementById('yamlFormatted').textContent = '';
+      inputEl.selectionStart = inputEl.selectionEnd = 0;
+    }
+
+    function selectAtLineColumn(textareaEl, line0, column0) {
+      const text = textareaEl.value;
+      const lines = text.split('\\n');
+      let index = 0;
+      for (let i = 0; i < line0 && i < lines.length; i++) {
+        index += lines[i].length + 1; // newline
+      }
+      index += Math.max(0, column0);
+      textareaEl.focus();
+      textareaEl.selectionStart = index;
+      textareaEl.selectionEnd = Math.min(index + 1, text.length);
+      const lineHeight = 18;
+      textareaEl.scrollTop = Math.max(0, line0 * lineHeight);
+    }
+  </script>
+</body>
+</html>
