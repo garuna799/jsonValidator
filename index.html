@@ -1,49 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>JSON Validator</title>
     <style>
-        body { font-family: Arial, sans-serif; }
+        body { font-family: Arial, sans-serif; position: relative; padding: 40px; }
         .error { color: red; font-weight: bold; }
+        .success { color: green; font-weight: bold; }
         .highlight { background-color: yellow; }
+
+        /* Top-right section for YAML validator link */
+        .top-right {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+        }
+        .top-right a {
+            display: inline-block;
+            padding: 8px 12px;
+            background: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .top-right a:hover { background: #0056b3; }
+
+        textarea { font-family: monospace; width: 100%; box-sizing: border-box; }
+        .controls { margin-top: 8px; }
+        .controls button { margin-right: 8px; padding: 6px 10px; }
     </style>
 </head>
 <body>
+    <div class="top-right">
+        <a href="yaml.html" id="yamlLink">YAML Validator</a>
+    </div>
+
     <h1>JSON Validator</h1>
-    <textarea id="jsonInput" rows="10" cols="50"></textarea><br>
-    <button onclick="validateJSON()">Validate</button>
-    <div id="errorOutput" class="error"></div>
+    <p>Paste JSON below. Use Validate to check syntax and Format to pretty-print.</p>
+
+    <textarea id="jsonInput" rows="14" placeholder='Paste JSON here'></textarea>
+
+    <div class="controls">
+        <button onclick="validateJSON()">Validate</button>
+        <button onclick="formatJSON()">Format</button>
+        <button onclick="clearJSON()">Clear</button>
+    </div>
+
+    <div id="errorOutput" class="error" aria-live="polite" style="margin-top:8px;"></div>
 
     <script>
         function validateJSON() {
-            const input = document.getElementById('jsonInput').value;
+            const inputEl = document.getElementById('jsonInput');
+            const input = inputEl.value;
             const errorOutput = document.getElementById('errorOutput');
-            errorOutput.innerHTML = ''; // Clear previous errors
+            errorOutput.textContent = '';
+            errorOutput.classList.remove('success');
+            errorOutput.classList.add('error');
+
+            if (!input.trim()) {
+                errorOutput.textContent = 'Please enter JSON to validate.';
+                return;
+            }
 
             try {
-                // Use JSON.parse() to validate input
                 JSON.parse(input);
-                errorOutput.innerHTML = 'No errors found!';
+                errorOutput.textContent = 'No errors found!';
                 errorOutput.classList.remove('error');
-                return;
+                errorOutput.classList.add('success');
+                // clear any selection
+                inputEl.selectionStart = inputEl.selectionEnd = input.length;
+                inputEl.scrollTop = 0;
             } catch (e) {
-                highlightError(input, e);
+                highlightError(inputEl, e);
             }
         }
 
-        function highlightError(input, error) {
-            // Determine the character position of the error
-            const position = error.location ? error.location.start : -1;
+        function formatJSON() {
+            const inputEl = document.getElementById('jsonInput');
+            const errorOutput = document.getElementById('errorOutput');
+            errorOutput.textContent = '';
+            errorOutput.classList.remove('success', 'error');
 
-            // Highlight the error position in the input
-            const highlightedInput = input.split('')
-                .map((char, index) => index === position ? `<span class='highlight'>${char}</span>` : char)
-                .join('');
+            if (!inputEl.value.trim()) {
+                errorOutput.textContent = 'Please enter JSON to format.';
+                errorOutput.classList.add('error');
+                return;
+            }
 
-            document.getElementById('jsonInput').value = highlightedInput;
-            errorOutput.innerHTML = 'JSON syntax error detected! Please fix the highlighted part.';
+            try {
+                const parsed = JSON.parse(inputEl.value);
+                inputEl.value = JSON.stringify(parsed, null, 2);
+                errorOutput.textContent = 'Formatted successfully.';
+                errorOutput.classList.add('success');
+            } catch (e) {
+                highlightError(inputEl, e);
+            }
+        }
+
+        function clearJSON() {
+            const inputEl = document.getElementById('jsonInput');
+            const errorOutput = document.getElementById('errorOutput');
+            inputEl.value = '';
+            errorOutput.textContent = '';
+            inputEl.selectionStart = inputEl.selectionEnd = 0;
+        }
+
+        function highlightError(textareaEl, error) {
+            const errorOutput = document.getElementById('errorOutput');
+            let pos = -1;
+            const msg = error && error.message ? error.message : String(error);
+
+            // Try "position" from V8: "Unexpected token ... in JSON at position 10"
+            const posMatch = msg.match(/at position (\\d+)/i);
+            if (posMatch && posMatch[1]) {
+                pos = parseInt(posMatch[1], 10);
+            } else {
+                // Try "line X column Y"
+                const rc = msg.match(/line (\\d+) column (\\d+)/i);
+                if (rc) {
+                    const line = parseInt(rc[1], 10) - 1;
+                    const col = parseInt(rc[2], 10) - 1;
+                    pos = lineColToIndex(textareaEl.value, line, col);
+                } else {
+                    // Try to find a nearby location using common hints (like "Unexpected token }")
+                    // fallback: put cursor at end
+                    pos = Math.min(textareaEl.value.length, Math.max(0, parseInt((msg.match(/(position|pos)\\s*:?\\s*(\\d+)/i) || [])[2] || -1)));
+                    if (isNaN(pos) || pos < 0) pos = textareaEl.value.length;
+                }
+            }
+
+            if (pos >= 0 && pos <= textareaEl.value.length) {
+                textareaEl.focus();
+                textareaEl.selectionStart = pos;
+                textareaEl.selectionEnd = Math.min(pos + 1, textareaEl.value.length);
+                // Scroll approximate line into view
+                const lines = textareaEl.value.substr(0, pos).split("\\n");
+                const lineNumber = Math.max(0, lines.length - 1);
+                textareaEl.scrollTop = lineNumber * 18;
+            }
+
+            errorOutput.textContent = 'JSON syntax error: ' + msg;
+            errorOutput.classList.add('error');
+        }
+
+        function lineColToIndex(text, line, col) {
+            const lines = text.split('\\n');
+            let idx = 0;
+            for (let i = 0; i < line && i < lines.length; i++) {
+                idx += lines[i].length + 1; // newline
+            }
+            idx += Math.max(0, col);
+            return idx;
         }
     </script>
 </body>
